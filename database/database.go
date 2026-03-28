@@ -2,7 +2,9 @@ package database
 
 import (
 	"context"
+	"encoding/base64"
 	"log"
+	"os"
 
 	firebase "firebase.google.com/go/v4"
 	"cloud.google.com/go/firestore"
@@ -13,7 +15,19 @@ var Client *firestore.Client
 var Ctx = context.Background()
 
 func Init() {
-	opt := option.WithCredentialsFile("complaint-app-441b7-firebase-adminsdk-fbsvc-71a31afcfa.json")
+	var opt option.ClientOption
+
+	credsBase64 := os.Getenv("FIREBASE_CREDENTIALS_BASE64")
+	if credsBase64 != "" {
+		credsJSON, err := base64.StdEncoding.DecodeString(credsBase64)
+		if err != nil {
+			log.Fatalf("❌ Failed to decode Firebase credentials: %v", err)
+		}
+		opt = option.WithCredentialsJSON(credsJSON)
+	} else {
+		opt = option.WithCredentialsFile("complaint-app-441b7-firebase-adminsdk-fbsvc-71a31afcfa.json")
+	}
+
 	app, err := firebase.NewApp(Ctx, nil, opt)
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize Firebase: %v", err)
@@ -30,13 +44,11 @@ func Init() {
 
 func seedCategories() {
 	cats := []string{"Electricity", "Water", "Road", "Internet", "Others"}
-
 	for i, name := range cats {
 		docID := string(rune('1' + i))
 		ref := Client.Collection("categories").Doc(docID)
 		_, err := ref.Get(Ctx)
 		if err != nil {
-			// Document doesn't exist, create it
 			_, err = ref.Set(Ctx, map[string]interface{}{
 				"id":   i + 1,
 				"name": name,
