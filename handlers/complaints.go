@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
-	"os"
-	"path/filepath"
+	"net/url"
 	"time"
 
 	"antigravity/backend/database"
@@ -52,16 +52,30 @@ func CreateComplaint(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("image")
 	if err == nil {
 		defer file.Close()
-		os.MkdirAll("./uploads", os.ModePerm)
-		filename := fmt.Sprintf("%d%s", time.Now().UnixMilli(), filepath.Ext(header.Filename))
-		outPath := filepath.Join("./uploads", filename)
-		out, err := os.Create(outPath)
-		if err == nil {
-			defer out.Close()
-			io.Copy(out, file)
-			url := "/uploads/" + filename
-			imageURL = &url
+
+		// Firebase Storage upload
+		objectName := fmt.Sprintf("complaints/%d_%s", time.Now().UnixMilli(), header.Filename)
+		wc := database.Bucket.Object(objectName).NewWriter(database.Ctx)
+		wc.ContentType = header.Header.Get("Content-Type")
+		if wc.ContentType == "" {
+			wc.ContentType = "image/jpeg" // fallback
 		}
+
+		if _, err := io.Copy(wc, file); err != nil {
+			log.Printf("⚠️ Failed to copy image to storage: %v", err)
+		}
+		if err := wc.Close(); err != nil {
+			log.Printf("⚠️ Failed to close storage writer: %v", err)
+		}
+
+		// Construct public-accessible URL (Note: Requires bucket to have public access or appropriate rules)
+		// For simplicity, we use the standard firebasestorage v0 URL
+		encodedPath := url.PathEscape(objectName)
+		storageURL := fmt.Sprintf("https://firebasestorage.googleapis.com/v0/b/%s/o/%s?alt=media", 
+			database.BucketName, 
+			encodedPath)
+		
+		imageURL = &storageURL
 	}
 
 	ref, _, err := database.Client.Collection("complaints").Add(database.Ctx, map[string]interface{}{

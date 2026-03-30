@@ -8,10 +8,13 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/storage"
 	"google.golang.org/api/option"
 )
 
 var Client *firestore.Client
+var Bucket *storage.BucketHandle
+var BucketName = "complaint-app-441b7.appspot.com"
 var Ctx = context.Background()
 
 func Init() {
@@ -28,7 +31,11 @@ func Init() {
 		opt = option.WithCredentialsFile("complaint-app-441b7-firebase-adminsdk-fbsvc-71a31afcfa.json")
 	}
 
-	app, err := firebase.NewApp(Ctx, nil, opt)
+	config := &firebase.Config{
+		StorageBucket: BucketName,
+	}
+
+	app, err := firebase.NewApp(Ctx, config, opt)
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize Firebase: %v", err)
 	}
@@ -38,8 +45,18 @@ func Init() {
 		log.Fatalf("❌ Failed to connect to Firestore: %v", err)
 	}
 
+	storageClient, err := app.Storage(Ctx)
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to Storage: %v", err)
+	}
+
+	Bucket, err = storageClient.DefaultBucket()
+	if err != nil {
+		log.Fatalf("❌ Failed to get default Storage bucket: %v", err)
+	}
+
 	seedCategories()
-	log.Println("✅ Connected to Firestore database.")
+	log.Println("✅ Connected to Firestore & Storage.")
 }
 
 func seedCategories() {
