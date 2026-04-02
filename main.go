@@ -36,12 +36,16 @@ func main() {
 	r.HandleFunc("/api/complaints", middleware.PreflightHandler).Methods("OPTIONS")
 	r.HandleFunc("/api/complaints/me", middleware.PreflightHandler).Methods("OPTIONS")
 	r.HandleFunc("/api/complaints/{id}", middleware.PreflightHandler).Methods("OPTIONS")
+	r.HandleFunc("/api/feedback", middleware.PreflightHandler).Methods("OPTIONS")
 
 	// Complaints - actual protected routes
 	r.Handle("/api/complaints", middleware.Auth(http.HandlerFunc(handlers.CreateComplaint))).Methods("POST")
 	r.Handle("/api/complaints/me", middleware.Auth(http.HandlerFunc(handlers.GetMyComplaints))).Methods("GET")
 	r.Handle("/api/complaints", middleware.Auth(middleware.Admin(http.HandlerFunc(handlers.GetAllComplaints)))).Methods("GET")
 	r.Handle("/api/complaints/{id}", middleware.Auth(middleware.Admin(http.HandlerFunc(handlers.UpdateComplaint)))).Methods("PUT")
+
+	// Feedback
+	r.Handle("/api/feedback", middleware.Auth(http.HandlerFunc(handlers.SubmitFeedback))).Methods("POST")
 
 	port := os.Getenv("PORT")
 	if port == "" {
