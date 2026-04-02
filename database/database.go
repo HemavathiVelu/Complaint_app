@@ -60,19 +60,22 @@ func Init() {
 }
 
 func seedCategories() {
-	cats := []string{"Electricity", "Water", "Road", "Internet", "Others"}
+	cats := []string{
+		"Education and learning",
+		"Electricity",
+		"Transport and infrastructure",
+		"Agriculture",
+		"Rural and environment",
+	}
 	for i, name := range cats {
 		docID := string(rune('1' + i))
 		ref := Client.Collection("categories").Doc(docID)
-		_, err := ref.Get(Ctx)
+		_, err := ref.Set(Ctx, map[string]interface{}{
+			"id":   i + 1,
+			"name": name,
+		})
 		if err != nil {
-			_, err = ref.Set(Ctx, map[string]interface{}{
-				"id":   i + 1,
-				"name": name,
-			})
-			if err != nil {
-				log.Printf("⚠️ Failed to seed category %s: %v", name, err)
-			}
+			log.Printf("⚠️ Failed to seed category %s: %v", name, err)
 		}
 	}
 }
