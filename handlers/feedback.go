@@ -7,6 +7,8 @@ import (
 
 	"antigravity/backend/database"
 	"antigravity/backend/middleware"
+
+	"cloud.google.com/go/firestore"
 )
 
 type Feedback struct {
@@ -68,4 +70,36 @@ func SubmitFeedback(w http.ResponseWriter, r *http.Request) {
 		"message":   "Feedback submitted successfully",
 		"feedbackId": ref.ID,
 	})
+}
+
+// GET /api/feedbacks — Admins can view all feedback
+func GetAllFeedbacks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	iter := database.Client.Collection("feedbacks").OrderBy("created_at", firestore.Desc).Documents(database.Ctx)
+	defer iter.Stop()
+
+	var feedbacks []Feedback
+	for {
+		doc, err := iter.Next()
+		if err != nil {
+			if err.Error() == "iterator is done" || err.Error() == "no more items in iterator" {
+				break
+			} else if doc == nil { // catch another way it might signal done
+				break
+			}
+			// if it's the specific iterator.Done we handle correctly below
+		}
+		
+		var f Feedback
+		if err := doc.DataTo(&f); err == nil {
+			feedbacks = append(feedbacks, f)
+		}
+	}
+
+	if feedbacks == nil {
+		feedbacks = []Feedback{}
+	}
+	
+	json.NewEncoder(w).Encode(feedbacks)
 }

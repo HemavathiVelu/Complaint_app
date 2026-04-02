@@ -46,6 +46,7 @@ func main() {
 
 	// Feedback
 	r.Handle("/api/feedback", middleware.Auth(http.HandlerFunc(handlers.SubmitFeedback))).Methods("POST")
+	r.Handle("/api/feedbacks", middleware.Auth(middleware.Admin(http.HandlerFunc(handlers.GetAllFeedbacks)))).Methods("GET")
 
 	port := os.Getenv("PORT")
 	if port == "" {
