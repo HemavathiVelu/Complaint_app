@@ -9,6 +9,7 @@ import (
 	"antigravity/backend/middleware"
 
 	"cloud.google.com/go/firestore"
+	"github.com/gorilla/mux"
 )
 
 type Feedback struct {
@@ -102,4 +103,42 @@ func GetAllFeedbacks(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	json.NewEncoder(w).Encode(feedbacks)
+}
+
+// GET /api/feedback/{complaint_id} — Get feedback for a specific complaint
+func GetFeedbackByComplaint(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	vars := mux.Vars(r)
+	complaintID := vars["complaint_id"]
+
+	if complaintID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "complaint_id is required"})
+		return
+	}
+
+	iter := database.Client.Collection("feedbacks").Where("complaint_id", "==", complaintID).Limit(1).Documents(database.Ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err != nil {
+		if err.Error() == "iterator is done" || err.Error() == "no more items in iterator" {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No feedback found for this complaint"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch feedback", "details": err.Error()})
+		return
+	}
+
+	var f Feedback
+	if err := doc.DataTo(&f); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to parse feedback data"})
+		return
+	}
+
+	json.NewEncoder(w).Encode(f)
 }
