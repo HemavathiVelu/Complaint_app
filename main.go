@@ -27,7 +27,6 @@ func main() {
 	// Auth routes
 	r.HandleFunc("/api/auth/register", handlers.Register).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/login", handlers.Login).Methods("POST", "OPTIONS")
-	r.HandleFunc("/api/auth/verify-otp", handlers.VerifyOTP).Methods("POST", "OPTIONS")
 
 	// Category routes
 	r.HandleFunc("/api/categories", handlers.GetCategories).Methods("GET", "OPTIONS")
