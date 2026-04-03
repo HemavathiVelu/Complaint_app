@@ -66,6 +66,9 @@ func seedCategories() {
 		"Transport and infrastructure",
 		"Agriculture",
 		"Rural and environment",
+		"Water",
+		"Road",
+		"Street Light",
 	}
 	for i, name := range cats {
 		docID := string(rune('1' + i))
