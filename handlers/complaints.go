@@ -103,6 +103,9 @@ func CreateComplaint(w http.ResponseWriter, r *http.Request) {
 		"message":     "Complaint registered",
 		"complaintId": ref.ID,
 	})
+
+	// Notify admin asynchronously
+	go sendNewComplaintNotificationToAdmin(ref.ID, title, location, claims.RegisteredClaims.Subject)
 }
 
 // GET /api/complaints/me — citizen views own complaints
@@ -312,6 +315,67 @@ func sendResolvedNotification(complaintID string) {
 		log.Printf("⚠️ Failed to send resolved email to %s: %v", email, err)
 	} else {
 		log.Printf("✅ Resolved email sent successfully to %s", email)
+	}
+}
+
+// sendNewComplaintNotificationToAdmin emails an admin when a new complaint is submitted
+func sendNewComplaintNotificationToAdmin(complaintID, title, location, userID string) {
+	// 1. Get admin email from env (ADMIN_EMAIL)
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail == "" {
+		log.Println("⚠️ ADMIN_EMAIL not set, skipping admin notification")
+		return
+	}
+
+	// 2. Fetch the submitting user's name
+	userName := "A citizen"
+	userDoc, err := database.Client.Collection("users").Doc(userID).Get(database.Ctx)
+	if err == nil {
+		if n, ok := userDoc.Data()["name"].(string); ok && n != "" {
+			userName = n
+		}
+	}
+
+	// 3. Build and send the email
+	senderEmail := os.Getenv("SMTP_EMAIL")
+	senderPass := os.Getenv("SMTP_PASSWORD")
+	if senderEmail == "" || senderPass == "" {
+		log.Println("⚠️ SMTP_EMAIL or SMTP_PASSWORD not set, skipping admin notification")
+		return
+	}
+
+	host := os.Getenv("SMTP_HOST")
+	if host == "" {
+		host = "smtp.gmail.com"
+	}
+	port := 587
+	if portStr := os.Getenv("SMTP_PORT"); portStr != "" {
+		fmt.Sscanf(portStr, "%d", &port)
+	}
+
+	m := gomail.NewMessage()
+	m.SetHeader("From", senderEmail)
+	m.SetHeader("To", adminEmail)
+	m.SetHeader("Subject", "📋 New Complaint Submitted: "+title)
+
+	body := fmt.Sprintf(
+		"Hello Admin,\n\nA new complaint has been submitted and requires your attention.\n\n"+
+			"─────────────────────────\n"+
+			"Complaint ID : %s\n"+
+			"Title        : %s\n"+
+			"Location     : %s\n"+
+			"Submitted by : %s\n"+
+			"─────────────────────────\n\n"+
+			"Please log in to the admin dashboard to review and act on this complaint.\n",
+		complaintID, title, location, userName,
+	)
+	m.SetBody("text/plain", body)
+
+	d := gomail.NewDialer(host, port, senderEmail, senderPass)
+	if err := d.DialAndSend(m); err != nil {
+		log.Printf("⚠️ Failed to send new-complaint email to admin (%s): %v", adminEmail, err)
+	} else {
+		log.Printf("✅ New-complaint notification sent to admin (%s) for complaint %s", adminEmail, complaintID)
 	}
 }
 
