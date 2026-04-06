@@ -12,6 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/api/iterator"
+	"cloud.google.com/go/firestore"
 )
 
 type RegisterRequest struct {
@@ -145,4 +146,56 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		"token": tokenStr,
 		"user":  map[string]interface{}{"id": docID, "name": name, "email": email, "role": role},
 	})
+}
+
+type ResetPasswordRequest struct {
+	Email       string `json:"email"`
+	NewPassword string `json:"new_password"`
+}
+
+func ResetPassword(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var req ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	// Find user by email
+	iter := database.Client.Collection("users").Where("email", "==", req.Email).Documents(database.Ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err == iterator.Done || doc == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+		return
+	}
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
+		return
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 10)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
+		return
+	}
+
+	// Update password in Firestore
+	_, err = doc.Ref.Update(database.Ctx, []firestore.Update{
+		{Path: "password", Value: string(hashed)},
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update password"})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Password updated successfully"})
 }
