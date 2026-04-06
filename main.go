@@ -43,7 +43,7 @@ func main() {
 	// Complaints - actual protected routes
 	r.Handle("/api/complaints", middleware.Auth(http.HandlerFunc(handlers.CreateComplaint))).Methods("POST")
 	r.Handle("/api/complaints/me", middleware.Auth(http.HandlerFunc(handlers.GetMyComplaints))).Methods("GET")
-	r.Handle("/api/complaints", middleware.Auth(middleware.Admin(http.HandlerFunc(handlers.GetAllComplaints)))).Methods("GET")
+	r.Handle("/api/complaints", middleware.Auth(http.HandlerFunc(handlers.GetAllComplaints))).Methods("GET")
 	r.Handle("/api/complaints/{id}", middleware.Auth(middleware.Admin(http.HandlerFunc(handlers.UpdateComplaint)))).Methods("PUT")
 
 	// Feedback
@@ -61,4 +61,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-

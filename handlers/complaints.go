@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"antigravity/backend/database"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"google.golang.org/api/iterator"
+	"gopkg.in/gomail.v2"
 )
 
 type Complaint struct {
@@ -234,7 +236,83 @@ func UpdateComplaint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the admin successfully marks a complaint as "Resolved", trigger the email
+	if body.Status != nil && *body.Status == "Resolved" {
+		go sendResolvedNotification(id)
+	}
+
 	json.NewEncoder(w).Encode(map[string]string{"message": "Complaint updated successfully"})
+}
+
+// sendResolvedNotification fetches necessary data and sends an email to the user
+func sendResolvedNotification(complaintID string) {
+	// 1. Fetch the complaint
+	doc, err := database.Client.Collection("complaints").Doc(complaintID).Get(database.Ctx)
+	if err != nil {
+		log.Printf("⚠️ Failed to fetch complaint %s for email notification: %v", complaintID, err)
+		return
+	}
+	data := doc.Data()
+	userID, ok1 := data["user_id"].(string)
+	title, ok2 := data["title"].(string)
+
+	if !ok1 || !ok2 {
+		log.Printf("⚠️ Complaint %s missing user_id or title", complaintID)
+		return
+	}
+
+	// 2. Fetch the user's details
+	userDoc, err := database.Client.Collection("users").Doc(userID).Get(database.Ctx)
+	if err != nil {
+		log.Printf("⚠️ Failed to fetch user %s for email notification: %v", userID, err)
+		return
+	}
+	userData := userDoc.Data()
+	email, eOk := userData["email"].(string)
+	name, nOk := userData["name"].(string)
+
+	if !eOk || email == "" {
+		log.Println("⚠️ Cannot send resolved email: User has no email associated")
+		return
+	}
+	if !nOk {
+		name = "Citizen"
+	}
+
+	// 3. Send the email with gomail
+	host := os.Getenv("SMTP_HOST")
+	if host == "" {
+		host = "smtp.gmail.com"
+	}
+	portStr := os.Getenv("SMTP_PORT")
+	port := 587
+	if portStr != "" {
+		fmt.Sscanf(portStr, "%d", &port)
+	}
+
+	senderEmail := os.Getenv("SMTP_EMAIL")
+	senderPass := os.Getenv("SMTP_PASSWORD")
+
+	if senderEmail == "" || senderPass == "" {
+		log.Println("⚠️ SMTP_EMAIL or SMTP_PASSWORD not set, skipping email notification")
+		return
+	}
+
+	m := gomail.NewMessage()
+	m.SetHeader("From", senderEmail)
+	m.SetHeader("To", email)
+	m.SetHeader("Subject", "Complaint Resolved: "+title)
+
+	body := fmt.Sprintf("Hello %s,\n\nWe are pleased to inform you that your complaint titled '%s' has been marked as Resolved.\n\nThank you for reaching out to us.\n", name, title)
+	m.SetBody("text/plain", body)
+
+	d := gomail.NewDialer(host, port, senderEmail, senderPass)
+
+	if err := d.DialAndSend(m); err != nil {
+		log.Printf("⚠️ Failed to send resolved email to %s: %v", email, err)
+	} else {
+		log.Printf("✅ Resolved email sent successfully to %s", email)
+	}
 }
 
 // Helper: convert Firestore doc to Complaint struct
