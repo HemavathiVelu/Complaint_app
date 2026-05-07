@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: complaint-app-backend
+    env: go
+    buildCommand: go build -o app
+    startCommand: ./app
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: GO_VERSION
+        value: 1.21.0
+      - key: FIREBASE_CREDENTIALS_BASE64
+        sync: false
