@@ -28,7 +28,7 @@ func Init() {
 		}
 		opt = option.WithCredentialsJSON(credsJSON)
 	} else {
-		opt = option.WithCredentialsFile("complaint-app-441b7-firebase-adminsdk-fbsvc-f907cbe2c3.json")
+		opt = option.WithCredentialsFile("uploads/complaint-app-441b7-firebase-adminsdk-fbsvc-f907cbe2c3.json")
 	}
 
 	config := &firebase.Config{
